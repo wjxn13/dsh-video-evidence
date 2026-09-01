@@ -1,5 +1,11 @@
 # dsh-video-evidence
 
+## 兼容的 Harness 版本
+
+- **已验证支持**：DeepSeek Harness `0.1.0-rc.6`（通过 `@deepseek-ai/dsh-mcp-client`，跨 profile 可用）。
+- **最新版 `0.1.2-alpha.3`**：适配计划进行中，暂无确切完成时间。升级前请先备份你的 DSH 安装。
+
+
 **给 [DeepSeek Harness (dsh)](https://github.com/deepseek-ai) 的 MCP 插件：按问题检索 B 站视频，并定位到真正讲到该内容的片段（带时间戳、可直接回跳）。**
 
 不是"搜到视频"就结束，而是回答"这个问题的答案在视频的第几分钟"。
