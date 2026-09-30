@@ -45,6 +45,9 @@ TOOLS = [
             "按问题检索 B 站视频，并定位到真正讲到该内容的片段（带时间戳、可直接回跳）。"
             "适用于：想看某个知识点的视频讲解、教程片段、会议/课程里的某段发言。"
             "不适用于：找网页资料（用 argo_search）、找论文（用学术源）。"
+            "返回结果附有关键帧总览图的本地路径（画面证据）：具备视觉能力的模型"
+            "应按顺序读取这些图片、核对画面内容，与转录时间轴对齐后综合回答；"
+            "无视觉能力的模型忽略图片路径，只使用转录文本即可。"
             "注意：首次查询某视频需拉流+本地转写，耗时与音频长度相关；"
             "同一视频再次提问会命中缓存，几乎瞬时返回。"
         ),
@@ -200,6 +203,9 @@ def _video_search(args: dict) -> str:
                 "建议换更贴近视频口语表达的关键词。" %
                 (query, "、".join(p["video"].get("title", "")[:20] for p in processed)))
 
+    # ---- 画面线：只对最终命中的视频抽帧（成本只花在进答案的片段上）----
+    frames_block, frames_note = _build_frames_block(client, picked, audio_seconds, deadline)
+
     lines = ["查询：%s" % query,
              "已处理 %d 个视频，命中 %d 个片段（时间预算 %ds）" % (len(processed), len(picked), budget),
              ""]
@@ -214,9 +220,51 @@ def _video_search(args: dict) -> str:
         txt = c["text"]
         lines.append("    “%s%s”" % (txt[:180], "…" if len(txt) > 180 else ""))
         lines.append("")
+    if frames_block:
+        lines.append(frames_block)
+    elif frames_note:
+        lines.append(frames_note)
     if skipped:
         lines.append("（跳过：%s）" % "、".join(skipped[:3]))
     return "\n".join(lines)
+
+
+def _build_frames_block(client, picked, seconds, deadline):
+    """为命中片段装配画面证据。返回 (画面证据文本块, 未生成时的提示)。
+
+    每个命中视频一次抽帧机会；抽帧失败只降级，绝不影响转录结果。
+    seconds 与转录的 audio_seconds 对齐，保证画面覆盖范围与转录一致。
+    """
+    try:
+        import frames as frames_mod
+    except Exception:
+        return "", ""
+    if not frames_mod.ENABLED:
+        return "", ""
+
+    seen, parts = set(), []
+    for _sc, v, _c, _src in picked:
+        bvid = v["bvid"]
+        if bvid in seen:
+            continue
+        seen.add(bvid)
+        overviews, meta_path, err = frames_mod.ensure_for_video(
+            client, v, seconds, deadline)
+        if overviews:
+            parts.append("视频 %s（%s）：" % (bvid, (v.get("title") or "")[:40]))
+            for p in overviews:
+                parts.append("  - %s" % p)
+            if meta_path:
+                parts.append("  单帧与时间戳索引：%s" % meta_path)
+        else:
+            parts.append("视频 %s：画面证据未生成（%s）" % (bvid, err or "未知原因"))
+
+    if not parts:
+        return "", ""
+    head = ("【画面证据】以下是命中视频的关键帧总览图（画面按时间顺序排列，"
+            "每格下方有 #帧号 时间戳）。具备视觉能力的模型应按顺序读取全部图片，"
+            "把画面内容与上方转录片段按时间戳对齐后再回答：")
+    return head + "\n" + "\n".join(parts), ""
 
 
 def _cache_stats(_args) -> str:

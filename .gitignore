@@ -16,3 +16,6 @@ cache.sqlite3
 .DS_Store
 .idea/
 .vscode/
+
+# 画面证据缓存（关键帧总览图，本地产物不入库）
+frames/
