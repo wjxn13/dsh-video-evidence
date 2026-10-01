@@ -20,7 +20,9 @@ import cache  # 复用其 DB 目录作为帧产物根目录
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 # 抽帧引擎位置与本机 Python（均可被环境变量覆盖，便于换机器）
-PYTHON = os.environ.get("VDB_PYTHON", r"D:\python\python.exe")
+# PYTHON 默认用当前解释器：DSH 链路下 = .venv（带 numpy/Pillow），
+# 直跑 worker = 系统 Python，随链路自适应，不写死路径
+PYTHON = os.environ.get("VDB_PYTHON", sys.executable)
 KEYFRAMES_SCRIPT = os.environ.get(
     "VDB_KEYFRAMES_SCRIPT",
     r"C:\Users\86180\.workbuddy\skills\video-understanding\scripts\extract_keyframes.py")
