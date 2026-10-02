@@ -7,8 +7,32 @@ import os
 import shutil
 import subprocess
 
-# 优先用 FFMPEG_BIN；否则退回 PATH 里的 ffmpeg（不硬编码任何本机路径）。
-FFMPEG = os.environ.get("FFMPEG_BIN") or (shutil.which("ffmpeg") or "ffmpeg")
+# 找 ffmpeg：FFMPEG_BIN → 本机已知绝对路径 → PATH。
+# 为什么不能只信 shutil.which：dsh 会清理子进程环境，PATH 里那个
+# WinGet shim（AppData\...\WinGet\Links\ffmpeg.exe）实测是断链
+# （指向已被清掉的 Packages 目录），which 能返回它、exit 却是
+# WinError 3「系统找不到指定的路径」——所以每个候选都要真跑一次 -version。
+FFMPEG_CANDIDATES = [
+    r"C:\Program Files\SVC Fusion\ffmpeg.exe",
+    r"C:\Program Files\SVC Fusion\project\ffmpeg\bin\ffmpeg.exe",
+]
+
+
+def _find_ffmpeg() -> str:
+    cands = [os.environ.get("FFMPEG_BIN")] + FFMPEG_CANDIDATES + [shutil.which("ffmpeg")]
+    for c in cands:
+        if not c or not os.path.exists(c):
+            continue
+        try:
+            p = subprocess.run([c, "-version"], capture_output=True, timeout=15)
+            if p.returncode == 0:
+                return c
+        except Exception:
+            continue
+    return shutil.which("ffmpeg") or "ffmpeg"
+
+
+FFMPEG = _find_ffmpeg()
 HERE = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.environ.get(
     "ASR_MODEL_DIR", os.path.join(HERE, "models", "base"))

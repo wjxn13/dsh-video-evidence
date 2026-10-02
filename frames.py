@@ -32,7 +32,19 @@ ENABLED = os.environ.get("VDB_FRAMES_ENABLED", "1") not in ("0", "false", "no")
 # 每张 ≤12 格 / 3 列 / 宽 1600 —— 每格在模型眼里 ~380px，字幕可读
 SHEET_ARGS = ["--cols", "3", "--sheet-max-cells", "12", "--sheet-width", "1600"]
 
-FFMPEG = os.environ.get("FFMPEG_BIN") or (shutil.which("ffmpeg") or "ffmpeg")
+from asr import _find_ffmpeg
+
+FFMPEG = _find_ffmpeg()
+
+
+def child_env() -> dict:
+    """给抽帧子脚本的环境：它靠 PATH 找 ffmpeg/ffprobe，不认 FFMPEG_BIN，
+    而本机 PATH 里只有 WinGet 的断链 shim —— 故把已知 ffmpeg 目录前置。"""
+    env = dict(os.environ)
+    d = os.path.dirname(FFMPEG)
+    if os.path.isdir(d):
+        env["PATH"] = d + os.pathsep + env.get("PATH", "")
+    return env
 
 
 def frames_dir(bvid: str) -> str:
@@ -91,7 +103,8 @@ def extract(mp4_path: str, out_dir: str, deadline=None):
         if deadline:
             timeout = max(30, deadline - _now())
         p = subprocess.run(cmd, capture_output=True, text=True,
-                           timeout=timeout, encoding="utf-8", errors="replace")
+                           timeout=timeout, encoding="utf-8", errors="replace",
+                           env=child_env())
     except subprocess.TimeoutExpired:
         return None, None, "抽帧超时"
     except Exception as e:
